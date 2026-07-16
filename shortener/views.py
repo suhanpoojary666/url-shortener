@@ -6,6 +6,7 @@ from rest_framework.response import Response
 from .models import URL
 from .serializers import URLSerializer
 from .utils import encode_base62
+from django.utils import timezone
 
 
 # Create your views here.
@@ -47,5 +48,22 @@ def redirect_url(request,short_code):       #short_code variable is intialized a
   
    url=get_object_or_404(URL,short_code=short_code)     #retrive the url from the URL table of db where short_code is the one initialized at urls.py
                                                         #we can retrive the short_code from the request by request.path(will return smthg like--> /GB) but django does this and sends as argument from the urls.py for us
+   
+   url.click_count+=1;              #increment the click count
+   url.last_accessed=timezone.now() #update the last accessed time
+   url.save()
+
+
    return redirect(url.original_url)    #instead of rendering a html or responding a json we redirect the user to the origianl link
                                         #here there is no json from the user end we use the endpoint(short_code to take actions)
+
+
+@api_view(["GET"])                                    #this is a GET end point to send the analyzed data for each stored url
+def url_stats(request,short_code):                    #simply get the data of the requested shortcode then respond with the data
+   url=get_object_or_404(URL,short_code=short_code)
+
+   return Response({
+      "click_count" : url.click_count,
+      "last_accessed" : url.last_accessed,
+      "created_at" : url.created_at
+   })
