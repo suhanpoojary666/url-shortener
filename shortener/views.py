@@ -21,22 +21,42 @@ def create_short_url(request):
      return Response(serializer.errors,status=400)   #if not valid then return sattus code 400
 
     original_url=serializer.validated_data["original_url"]
+    
+    custom_alias=serializer.validated_data.get("custom_alias")  #ailas if sent None if not sent by the user
 
-    qs=URL.objects.filter(original_url=original_url)
+    qs=URL.objects.filter(original_url=original_url)  #returns query set <[url:Gb]> or <[]>
    
-    url=qs.first()
+    url=qs.first()                                    #retruns object [url:Gb] or None
 
-    base_url=request.build_absolute_uri("/")[:-1]       #retrives the base url
+    base_url=request.build_absolute_uri("/")[:-1]     #retrives the base url
 
-    if url is None:
+    if url is None:                                   #if url is None create one else direclty retrun the retrived one\
 
-      url=URL(original_url=original_url)       
-      url.save()                              #save the url to the URL modle | 'url' is the object for that
+      if custom_alias:                                #if the custom_alias was passed use it as short code
 
-      url.short_code=encode_base62(url.id)    #get the id created by the db for the saved url and encode it by base62 function defined in utils.py and assign it to the short_code field of the db
-      url.save()                              #save the changes in db
-                                              #the id is a defult db field that incerements itself for each entry
-   
+         chck=URL.objects.filter(short_code=custom_alias).first()      #get the object where the shortcode is the alias given
+
+         if chck:                                     #if the object is already present respond with an error message
+            return Response({
+               "error":f"The custom alias {custom_alias} already exists"
+            })
+         
+         url=URL(original_url=original_url)       #save the url to the URL modle | 'url' is the object for that
+      
+         url.short_code=custom_alias              #save the alias as the short code
+         url.save()
+
+      else:
+
+         url=URL(original_url=original_url)       
+         url.save()                              #save the url to the URL modle | 'url' is the object for that
+
+         url.short_code=encode_base62(url.id)    #get the id created by the db for the saved url and encode it by base62 function defined in utils.py and assign it to the short_code field of the db
+         url.save()                              #save the changes in db
+                                                #the id is a defult db field that incerements itself for each entry
+
+      
+      
     return Response({
          
          "short_code":url.short_code,
