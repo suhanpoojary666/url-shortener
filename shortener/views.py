@@ -22,23 +22,29 @@ def create_short_url(request):
 
     original_url=serializer.validated_data["original_url"]
 
-    url=URL(original_url=original_url)       
-    url.save()              #save the url to the URL modle | 'url' is the object for that
-
-    url.short_code=encode_base62(url.id)    #get the id created by the db for the saved url and encode it by base62 function defined in utils.py and assign it to the short_code field of the db
-    url.save()                              #save the changes in db
-                                            #the id is a defult db field that incerements itself for each entry
-
+    qs=URL.objects.filter(original_url=original_url)
+   
+    url=qs.first()
 
     base_url=request.build_absolute_uri("/")[:-1]       #retrives the base url
 
+    if url is None:
+
+      url=URL(original_url=original_url)       
+      url.save()                              #save the url to the URL modle | 'url' is the object for that
+
+      url.short_code=encode_base62(url.id)    #get the id created by the db for the saved url and encode it by base62 function defined in utils.py and assign it to the short_code field of the db
+      url.save()                              #save the changes in db
+                                              #the id is a defult db field that incerements itself for each entry
+   
     return Response({
-       
-       "short_code":url.short_code,
-       "short_url":f"{base_url}/{url.short_code}"
-                     
-                     
-                     })      #return the short code and the formatted short url to the user 
+         
+         "short_code":url.short_code,
+         "short_url":f"{base_url}/{url.short_code}"       #return the short code and the formatted short url to the user
+                        
+                        
+                        })
+   
 
 
 
