@@ -4,14 +4,13 @@ from rest_framework.decorators import api_view
 from rest_framework.response import Response
 
 from .models import URL
-from .serializers import URLSerializer
+from .serializers import URLSerializer,RegisterSerializer
 from .utils import encode_base62
 from django.utils import timezone
+from django.contrib.auth.models import User
 
 
 # Create your views here.
-
-
 
 @api_view(["POST"])                                 #this is an api end point view function that recives POST request from the user (the url)
 def create_short_url(request):
@@ -93,3 +92,32 @@ def url_stats(request,short_code):                    #simply get the data of th
       "last_accessed" : url.last_accessed,
       "created_at" : url.created_at
    })
+
+
+
+@api_view(["POST"])
+def register(request):
+   serializer=RegisterSerializer(data=request.data)
+   
+   if not serializer.is_valid():
+      return Response(serializer.errors,status=400)         #validate the response
+   
+   username=serializer.validated_data["username"]           #retrive the data from the validated response
+   password=serializer.validated_data["password"]
+
+   existing_user=User.objects.filter(username=username).first()    #check if the username already exists
+
+   if existing_user:
+      return Response({
+         "error":"username already exist's"
+      })
+
+   user=User.objects.create_user(username=username,password=password) #Way of creating User model(class) object "user" where password is hashed automatically part of the built in user model of django
+
+   #Success response
+   return Response(
+    {
+        "message": "User registered successfully."
+    },
+    status=201
+)
