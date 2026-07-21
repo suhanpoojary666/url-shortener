@@ -1,10 +1,11 @@
 from django.shortcuts import render,get_object_or_404,redirect
 
-from rest_framework.decorators import api_view
+from rest_framework.decorators import api_view,permission_classes
 from rest_framework.response import Response
+from rest_framework.permissions import IsAuthenticated
 
 from .models import URL
-from .serializers import URLSerializer,RegisterSerializer
+from .serializers import URLSerializer,RegisterSerializer,URLResponseSerializer
 from .utils import encode_base62
 from django.utils import timezone
 from django.contrib.auth.models import User
@@ -13,6 +14,7 @@ from django.contrib.auth.models import User
 # Create your views here.
 
 @api_view(["POST"])                                 #this is an api end point view function that recives POST request from the user (the url)
+@permission_classes([IsAuthenticated])
 def create_short_url(request):
     serializer = URLSerializer(data=request.data)   #the request contains url only so the sreializer direclty takes the data and uses it(check in serializers.py)
 
@@ -23,7 +25,7 @@ def create_short_url(request):
     
     custom_alias=serializer.validated_data.get("custom_alias")  #ailas if sent None if not sent by the user
 
-    qs=URL.objects.filter(original_url=original_url)  #returns query set <[url:Gb]> or <[]>
+    qs=URL.objects.filter(original_url=original_url,owner=request.user)  #returns query set <[url:Gb]> or <[]>
    
     url=qs.first()                                    #retruns object [url:Gb] or None
 
@@ -43,6 +45,7 @@ def create_short_url(request):
          url=URL(original_url=original_url)       #save the url to the URL modle | 'url' is the object for that
       
          url.short_code=custom_alias              #save the alias as the short code
+         url.owner = request.user
          url.save()
 
       else:
@@ -51,6 +54,7 @@ def create_short_url(request):
          url.save()                              #save the url to the URL modle | 'url' is the object for that
 
          url.short_code=encode_base62(url.id)    #get the id created by the db for the saved url and encode it by base62 function defined in utils.py and assign it to the short_code field of the db
+         url.owner = request.user
          url.save()                              #save the changes in db
                                                 #the id is a defult db field that incerements itself for each entry
 
@@ -121,3 +125,12 @@ def register(request):
     },
     status=201
 )
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated]) #requires authentication
+def my_urls(request):
+   urls=URL.objects.filter(owner=request.user)  
+
+   serializer=URLResponseSerializer(urls,many=True)
+
+   return Response(serializer.data)
