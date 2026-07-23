@@ -7,4 +7,5 @@ urlpatterns = [
     path("shorten/", views.create_short_url),
     path("<str:short_code>/stats/", views.url_stats),
     path("<str:short_code>/", views.redirect_url),
+    path("<str:short_code>/delete/",views.delete_url),
 ]

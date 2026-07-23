@@ -134,3 +134,23 @@ def my_urls(request):
    serializer=URLResponseSerializer(urls,many=True)
 
    return Response(serializer.data)
+
+@api_view(["DELETE"])
+@permission_classes([IsAuthenticated])
+def delete_url(request,short_code):
+
+   url=get_object_or_404(URL,short_code=short_code)               #URL does not exists then return 404 else retrive the object
+
+   if url.owner != request.user:
+
+      return Response({
+         "error" : "You are not authorized to delete this URL"    #URL does not belong to the user
+      },status=403,)
+   
+   url.delete()                                                   #After all the checks delete the URL from db
+
+   return Response({
+      "messege":"URL deleted successfully"
+   })
+
+
