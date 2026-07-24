@@ -20,3 +20,6 @@ class URLResponseSerializer(serializers.Serializer):    #this is a response seri
     click_count = serializers.IntegerField()
     created_at = serializers.DateTimeField()
     last_accessed = serializers.DateTimeField(allow_null=True)
+
+class UpdateSerializer(serializers.Serializer):
+    custom_alias=serializers.CharField()

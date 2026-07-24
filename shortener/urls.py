@@ -8,4 +8,5 @@ urlpatterns = [
     path("<str:short_code>/stats/", views.url_stats),
     path("<str:short_code>/", views.redirect_url),
     path("<str:short_code>/delete/",views.delete_url),
+    path("<str:short_code>/update/",views.update_url),
 ]

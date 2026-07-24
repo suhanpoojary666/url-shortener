@@ -5,7 +5,7 @@ from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 
 from .models import URL
-from .serializers import URLSerializer,RegisterSerializer,URLResponseSerializer
+from .serializers import *
 from .utils import encode_base62
 from django.utils import timezone
 from django.contrib.auth.models import User
@@ -50,11 +50,10 @@ def create_short_url(request):
 
       else:
 
-         url=URL(original_url=original_url)       
+         url=URL(original_url=original_url,owner=request.user)       
          url.save()                              #save the url to the URL modle | 'url' is the object for that
 
          url.short_code=encode_base62(url.id)    #get the id created by the db for the saved url and encode it by base62 function defined in utils.py and assign it to the short_code field of the db
-         url.owner = request.user
          url.save()                              #save the changes in db
                                                 #the id is a defult db field that incerements itself for each entry
 
@@ -153,4 +152,46 @@ def delete_url(request,short_code):
       "messege":"URL deleted successfully"
    })
 
+@api_view(["PATCH"])
+@permission_classes([IsAuthenticated])
+def update_url(request,short_code):
 
+    base_url = request.build_absolute_uri("/")[:-1]         #build the base url for response
+
+    url=get_object_or_404(URL,short_code=short_code)        #retrive the object from the db with corresponding short_code
+
+    if request.user!=url.owner:                             #check if the user owns the url
+
+       return Response({
+          "error":"You are not authorized to update this URL"
+       },status=403,)
+
+    serializer=UpdateSerializer(data=request.data)          #validate the custom_alias sent by the user(JSON->py. object)
+
+    if not serializer.is_valid():                           
+       return Response(serializer.errors,status=400)
+
+    new_code=serializer.validated_data["custom_alias"]      #retrive the new short code
+
+    existing_url=URL.objects.filter(short_code=new_code).first()  #check if the custom_alias is already used
+
+    if existing_url:
+       
+       if existing_url != url:                                 
+         return Response({
+            "error": "Custom alias already exists."
+         },status=400,)
+       
+       else:
+        return Response({                                      #If the custom_alias is same as short_code of the same url just return dont access the db
+             "message": "Alias updated successfully.",
+             "short_url": f"{base_url}/{url.short_code}",
+           })
+
+    url.short_code=new_code
+    url.save()
+    
+    return Response({
+      "message": "Alias updated successfully.",
+      "short_url": f"{base_url}/{url.short_code}",
+    })
