@@ -6,6 +6,8 @@ class URLSerializer(serializers.Serializer):    #recives data from the client (J
                                            #The the URL recived at the views.py API endpoint is intialized to this variable
     custom_alias = serializers.CharField(required=False)    #Validate the custom alias if sent else ignore
 
+    expires_at = serializers.DateTimeField(required=False, allow_null=True) #validates the expiry time specified by the client (optinal)
+
 
 
 class RegisterSerializer(serializers.Serializer):       #this serializer validates the user regi. data sent by the cilent

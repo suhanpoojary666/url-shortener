@@ -8,6 +8,7 @@ from .models import URL
 from .serializers import *
 from .utils import encode_base62
 from django.utils import timezone
+from django.db.models import Q
 from django.contrib.auth.models import User
 
 
@@ -25,39 +26,43 @@ def create_short_url(request):
     
     custom_alias=serializer.validated_data.get("custom_alias")  #ailas if sent None if not sent by the user
 
-    qs=URL.objects.filter(original_url=original_url,owner=request.user)  #returns query set <[url:Gb]> or <[]>
-   
-    url=qs.first()                                    #retruns object [url:Gb] or None
+    expires_at=serializer.validated_data.get("expires_at")  #expires_at if sent None if not sent by the user
+
+    if expires_at and expires_at <= timezone.now():         #if the expiration link was set to past
+     return Response(
+        {
+            "error": "Expiration time must be in the future."
+        },
+        status=400,
+     )
 
     base_url=request.build_absolute_uri("/")[:-1]     #retrives the base url
 
-    if url is None:                                   #if url is None create one else direclty retrun the retrived one\
 
-      if custom_alias:                                #if the custom_alias was passed use it as short code
+    if custom_alias:                                #if the custom_alias was passed use it as short code
 
-         chck=URL.objects.filter(short_code=custom_alias).first()      #get the object where the shortcode is the alias given
+      chck=URL.objects.filter(short_code=custom_alias).first()      #get the object where the shortcode is the alias given
 
-         if chck:                                     #if the object is already present respond with an error message
-            return Response({
-               "error":f"The custom alias {custom_alias} already exists"
-            })
-         
-         url=URL(original_url=original_url)       #save the url to the URL modle | 'url' is the object for that
+      if chck:                                     #if the object is already present respond with an error message
+         return Response({
+            "error":f"The custom alias {custom_alias} already exists"
+         })
       
-         url.short_code=custom_alias              #save the alias as the short code
-         url.owner = request.user
-         url.save()
+      url=URL(original_url=original_url,owner = request.user,expires_at=expires_at)       #save the url to the URL model | 'url' is the object for that
+   
+      url.short_code=custom_alias              #save the alias as the short code
+      url.save()
 
-      else:
+    else:
 
-         url=URL(original_url=original_url,owner=request.user)       
-         url.save()                              #save the url to the URL modle | 'url' is the object for that
+      url=URL(original_url=original_url,owner=request.user,expires_at=expires_at)       
+      url.save()                              #save the url to the URL modle | 'url' is the object for that
 
-         url.short_code=encode_base62(url.id)    #get the id created by the db for the saved url and encode it by base62 function defined in utils.py and assign it to the short_code field of the db
-         url.save()                              #save the changes in db
-                                                #the id is a defult db field that incerements itself for each entry
+      url.short_code=encode_base62(url.id)    #get the id created by the db for the saved url and encode it by base62 function defined in utils.py and assign it to the short_code field of the db
+      url.save()                              #save the changes in db
+                                             #the id is a defult db field that incerements itself for each entry
 
-      
+   
       
     return Response({
          
@@ -76,7 +81,11 @@ def redirect_url(request,short_code):       #short_code variable is intialized a
   
    url=get_object_or_404(URL,short_code=short_code)     #retrive the url from the URL table of db where short_code is the one initialized at urls.py
                                                         #we can retrive the short_code from the request by request.path(will return smthg like--> /GB) but django does this and sends as argument from the urls.py for us
-   
+   if url.expires_at and timezone.now()>url.expires_at:  #check for expiration
+      return Response({
+         "error" : "This link has expired"
+      },status=410,)
+
    url.click_count+=1;              #increment the click count
    url.last_accessed=timezone.now() #update the last accessed time
    url.save()

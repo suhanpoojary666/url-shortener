@@ -13,7 +13,11 @@ class URL(models.Model):
     click_count=models.PositiveIntegerField(default=0)       #number of times a link was clicked
     last_accessed=models.DateTimeField(null=True,blank=True)    #time the link was last clicked
 
+    #authentication
     owner=models.ForeignKey(User,on_delete=models.CASCADE)   #Foreign key specifying the user of the short url connected to user table (cascade-delete all entries in URLs table if the owner is deleted in the owners table)
+
+    #Link Expiration
+    expires_at=models.DateTimeField(null=True,blank=True)    #Specifies the expiration time | Immortal of NULL
 
     def __str__(self):
         return self.short_code
