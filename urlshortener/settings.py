@@ -11,6 +11,11 @@ https://docs.djangoproject.com/en/5.1/ref/settings/
 """
 
 from pathlib import Path
+import os
+from dotenv import load_dotenv
+import dj_database_url
+
+load_dotenv()     #loading the .env file
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -76,12 +81,13 @@ WSGI_APPLICATION = 'urlshortener.wsgi.application'
 # https://docs.djangoproject.com/en/5.1/ref/settings/#databases
 
 DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
-    }
+    'default':
+        dj_database_url.parse(          #db used is PostgreSQL hosted at NEON connection URL specified at .env
+        os.getenv("DATABASE_URL")
+        )
 }
 
+DATABASES["default"]["CONN_MAX_AGE"] = 600      #Keeps the connection live for 10min this decreases response speed from 2s--->700ms for follow up requests
 
 # Password validation
 # https://docs.djangoproject.com/en/5.1/ref/settings/#auth-password-validators

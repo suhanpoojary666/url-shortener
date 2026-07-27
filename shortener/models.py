@@ -5,7 +5,7 @@ from django.contrib.auth.models import User
 
 class URL(models.Model):
     #basics
-    original_url=models.URLField()                          #stores the original url
+    original_url=models.URLField(max_length=4096)                         #stores the original url
     short_code=models.CharField(max_length=10,unique=True)  #stores the short_code for the corresponding url
     created_at=models.DateTimeField(auto_now_add=True)      #stores the time of creation
 
