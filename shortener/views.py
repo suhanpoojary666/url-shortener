@@ -152,7 +152,7 @@ def delete_url(request,short_code):
    if url.owner != request.user:
 
       return Response({
-         "error" : "You are not authorized to delete this URL"    #URL does not belong to the user
+         "error" : "Link does not exist"    #URL does not belong to the user
       },status=403,)
    
    url.delete()                                                   #After all the checks delete the URL from db
@@ -172,7 +172,7 @@ def update_url(request,short_code):
     if request.user!=url.owner:                             #check if the user owns the url
 
        return Response({
-          "error":"You are not authorized to update this URL"
+          "error":"url does not exist"
        },status=403,)
 
     serializer=UpdateSerializer(data=request.data)          #validate the custom_alias sent by the user(JSON->py. object)
@@ -204,3 +204,31 @@ def update_url(request,short_code):
       "message": "Alias updated successfully.",
       "short_url": f"{base_url}/{url.short_code}",
     })
+
+@api_view(["PATCH"])
+@permission_classes([IsAuthenticated])
+def modify_expiration(request,short_code):
+   
+   url=get_object_or_404(URL,short_code=short_code,owner=request.user)   #added the user(owner) check during retrival itself 
+
+   serializer=ModifyExpirationSerializer(data=request.data)
+
+   if not serializer.is_valid():                           
+       return Response(serializer.errors,status=400)
+
+   new_time=serializer.validated_data["new_time"]
+
+   if new_time<=timezone.now():
+      return Response({
+         "error":"Expiration time must be in future"
+      },status=400,)
+   
+   url.expires_at=new_time
+   url.save()
+
+   return Response({
+      "message" : "expiration time modified successfully",
+      "expires_at": new_time
+   })
+
+   

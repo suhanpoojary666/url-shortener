@@ -25,3 +25,6 @@ class URLResponseSerializer(serializers.Serializer):    #this is a response seri
 
 class UpdateSerializer(serializers.Serializer):
     custom_alias=serializers.CharField()
+
+class ModifyExpirationSerializer(serializers.Serializer):
+    new_time=serializers.DateTimeField(required=False, allow_null=True)
