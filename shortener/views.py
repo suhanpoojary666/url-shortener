@@ -11,12 +11,19 @@ from django.utils import timezone
 from django.db.models import Q
 from django.contrib.auth.models import User
 
+from .redis_client import redis_client
+
+import json
+
 
 # Create your views here.
 
 @api_view(["POST"])                                 #this is an api end point view function that recives POST request from the user (the url)
 @permission_classes([IsAuthenticated])
 def create_short_url(request):
+
+    redis_client.delete(f"user:{request.user.id}:urls")     #invalidate if the my_urls data is cached
+    
     serializer = URLSerializer(data=request.data)   #the request contains url only so the sreializer direclty takes the data and uses it(check in serializers.py)
 
     if not serializer.is_valid():                    #check if the serializer is a valid URL or not
@@ -78,6 +85,9 @@ def create_short_url(request):
 
 @api_view(["GET"])                          #This is a get request end point
 def redirect_url(request,short_code):       #short_code variable is intialized at urls.py
+
+   redis_client.delete(f"user:{request.user.id}:urls")     #invalidates if the my_urls data is cached
+   redis_client.delete(f"url:{url.short_code}:stats")
   
    url=get_object_or_404(URL,short_code=short_code)     #retrive the url from the URL table of db where short_code is the one initialized at urls.py
                                                         #we can retrive the short_code from the request by request.path(will return smthg like--> /GB) but django does this and sends as argument from the urls.py for us
@@ -90,20 +100,36 @@ def redirect_url(request,short_code):       #short_code variable is intialized a
    url.last_accessed=timezone.now() #update the last accessed time
    url.save()
 
-
    return redirect(url.original_url)    #instead of rendering a html or responding a json we redirect the user to the origianl link
                                         #here there is no json from the user end we use the endpoint(short_code to take actions)
 
 
 @api_view(["GET"])                                    #this is a GET end point to send the analyzed data for each stored url
 def url_stats(request,short_code):                    #simply get the data of the requested shortcode then respond with the data
-   url=get_object_or_404(URL,short_code=short_code)
 
-   return Response({
+   cache_key = f"url:{short_code}:stats"
+
+   cached_data=redis_client.get(cache_key)            #json string is retived from the cache data
+
+   if cached_data:
+      return Response(json.loads(cached_data))        #retrives the json string converts to json and returns
+
+   url=get_object_or_404(URL,short_code=short_code,owner=request.user)
+
+   data={
       "click_count" : url.click_count,
       "last_accessed" : url.last_accessed,
-      "created_at" : url.created_at
-   })
+      "created_at" : url.created_at,
+      "expires_at" : url.expires_at
+   }
+
+   redis_client.setex(
+      cache_key,
+      300,
+      json.dumps(data,default=str) #covert the json-->string and store into cache
+   )
+
+   return Response(data)
 
 
 
@@ -137,9 +163,19 @@ def register(request):
 @api_view(["GET"])
 @permission_classes([IsAuthenticated]) #requires authentication
 def my_urls(request):
+
+   cache_key=f"user:{request.user.id}:urls"                #this is the chache key for this endpoint
+
+   cached_data=redis_client.get(cache_key)                 #check in cache
+
+   if cached_data:
+       return Response(json.loads(cached_data))            #return if it was a HIT
+
    urls=URL.objects.filter(owner=request.user)  
 
    serializer=URLResponseSerializer(urls,many=True)
+
+   redis_client.setex(cache_key,300,json.dumps(serializer.data,default=str))  #store if it was a MISS for 5min in cache
 
    return Response(serializer.data)
 
@@ -154,6 +190,12 @@ def delete_url(request,short_code):
       return Response({
          "error" : "Link does not exist"    #URL does not belong to the user
       },status=403,)
+
+   redis_client.delete(f"user:{request.user.id}:urls")     #invalidate if the my_urls data is cached
+   redis_client.delete(f"url:{short_code}:stats")
+
+   url=get_object_or_404(URL,short_code=short_code)               #URL does not exists then return 404 else retrive the object
+
    
    url.delete()                                                   #After all the checks delete the URL from db
 
@@ -175,12 +217,15 @@ def update_url(request,short_code):
           "error":"url does not exist"
        },status=403,)
 
+    redis_client.delete(f"user:{request.user.id}:urls")     #invalidate if the my_urls data is cached
+    redis_client.delete(f"url:{short_code}:stats")
+
     serializer=UpdateSerializer(data=request.data)          #validate the custom_alias sent by the user(JSON->py. object)
 
     if not serializer.is_valid():                           
        return Response(serializer.errors,status=400)
 
-    new_code=serializer.validated_data["custom_alias"]      #retrive the new short code
+    new_code=serializer.validated_data["new_short_code"]      #retrive the new short code
 
     existing_url=URL.objects.filter(short_code=new_code).first()  #check if the custom_alias is already used
 
@@ -210,6 +255,9 @@ def update_url(request,short_code):
 def modify_expiration(request,short_code):
    
    url=get_object_or_404(URL,short_code=short_code,owner=request.user)   #added the user(owner) check during retrival itself 
+
+   redis_client.delete(f"user:{request.user.id}:urls")     #invalidate if the my_urls data is cached
+   redis_client.delete(f"url:{url.short_code}:stats")
 
    serializer=ModifyExpirationSerializer(data=request.data)
 
