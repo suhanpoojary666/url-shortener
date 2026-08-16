@@ -21,15 +21,15 @@ import json
 @permission_classes([IsAuthenticated])
 def create_short_url(request):
 
-    key_rl=f"rate_limit:{request.user.id}:create_short_url"
+    key_rl=f"rate_limit:{request.user.id}:create_short_url"  #rate limiting key
 
-    req_count=redis_client.incr(key_rl)
+    req_count=redis_client.incr(key_rl)  #increments the counter
 
     if req_count==1:
-       redis_client.expire(key_rl,60)
+       redis_client.expire(key_rl,60)  #if it is the 1st counter set expiry=1min
 
     if req_count > 10:
-       return Response({"message":"Too many requests"},status=429)
+       return Response({"message":"Too many requests"},status=429) #exceeds the limit
     
     serializer = URLSerializer(data=request.data)   #the request contains url only so the sreializer direclty takes the data and uses it(check in serializers.py)
 
@@ -153,7 +153,7 @@ def url_stats(request,short_code):                    #simply get the data of th
 @api_view(["POST"])
 def register(request):
 
-   key_rl=f"rate_limit:{request.META.get('REMOTE_ADDR')}:register"
+   key_rl=f"rate_limit:{request.META.get('REMOTE_ADDR')}:register"  # IP based rate limiting
 
    req_count=redis_client.incr(key_rl)
 
