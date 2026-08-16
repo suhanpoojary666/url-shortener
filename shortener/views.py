@@ -8,7 +8,6 @@ from .models import URL
 from .serializers import *
 from .utils import encode_base62
 from django.utils import timezone
-from django.db.models import Q
 from django.contrib.auth.models import User
 
 from .redis_client import redis_client
@@ -22,7 +21,15 @@ import json
 @permission_classes([IsAuthenticated])
 def create_short_url(request):
 
-    redis_client.delete(f"user:{request.user.id}:urls")     #invalidate if the my_urls data is cached
+    key_rl=f"rate_limit:{request.user.id}:create_short_url"
+
+    req_count=redis_client.incr(key_rl)
+
+    if req_count==1:
+       redis_client.expire(key_rl,60)
+
+    if req_count > 10:
+       return Response({"message":"Too many requests"},status=429)
     
     serializer = URLSerializer(data=request.data)   #the request contains url only so the sreializer direclty takes the data and uses it(check in serializers.py)
 
@@ -69,7 +76,7 @@ def create_short_url(request):
       url.save()                              #save the changes in db
                                              #the id is a defult db field that incerements itself for each entry
 
-   
+    redis_client.delete(f"user:{request.user.id}:urls")     #invalidate if the my_urls data is cached
       
     return Response({
          
@@ -85,9 +92,6 @@ def create_short_url(request):
 
 @api_view(["GET"])                          #This is a get request end point
 def redirect_url(request,short_code):       #short_code variable is intialized at urls.py
-
-   redis_client.delete(f"user:{request.user.id}:urls")     #invalidates if the my_urls data is cached
-   redis_client.delete(f"url:{url.short_code}:stats")
   
    url=get_object_or_404(URL,short_code=short_code)     #retrive the url from the URL table of db where short_code is the one initialized at urls.py
                                                         #we can retrive the short_code from the request by request.path(will return smthg like--> /GB) but django does this and sends as argument from the urls.py for us
@@ -100,12 +104,25 @@ def redirect_url(request,short_code):       #short_code variable is intialized a
    url.last_accessed=timezone.now() #update the last accessed time
    url.save()
 
+   redis_client.delete(f"user:{request.user.id}:urls")     #invalidates if the my_urls data is cached
+   redis_client.delete(f"url:{url.short_code}:stats")
+
    return redirect(url.original_url)    #instead of rendering a html or responding a json we redirect the user to the origianl link
                                         #here there is no json from the user end we use the endpoint(short_code to take actions)
 
 
 @api_view(["GET"])                                    #this is a GET end point to send the analyzed data for each stored url
 def url_stats(request,short_code):                    #simply get the data of the requested shortcode then respond with the data
+
+   key_rl=f"rate_limit:{request.user.id}:create_short_url"
+
+   req_count=redis_client.incr(key_rl)
+
+   if req_count==1:
+      redis_client.expire(key_rl,60)
+
+   if req_count > 60:
+      return Response({"message":"Too many requests"},status=429)
 
    cache_key = f"url:{short_code}:stats"
 
@@ -135,6 +152,17 @@ def url_stats(request,short_code):                    #simply get the data of th
 
 @api_view(["POST"])
 def register(request):
+
+   key_rl=f"rate_limit:{request.META.get('REMOTE_ADDR')}:register"
+
+   req_count=redis_client.incr(key_rl)
+
+   if req_count==1:
+      redis_client.expire(key_rl,60)
+
+   if req_count > 5:
+      return Response({"message":"Too many requests"},status=429)
+
    serializer=RegisterSerializer(data=request.data)
    
    if not serializer.is_valid():
@@ -164,6 +192,16 @@ def register(request):
 @permission_classes([IsAuthenticated]) #requires authentication
 def my_urls(request):
 
+   key_rl=f"rate_limit:{request.user.id}:my_urls"
+
+   req_count=redis_client.incr(key_rl)
+
+   if req_count==1:
+      redis_client.expire(key_rl,60)
+
+   if req_count > 8:
+      return Response({"message":"Too many requests"},status=429)
+
    cache_key=f"user:{request.user.id}:urls"                #this is the chache key for this endpoint
 
    cached_data=redis_client.get(cache_key)                 #check in cache
@@ -182,6 +220,17 @@ def my_urls(request):
 @api_view(["DELETE"])
 @permission_classes([IsAuthenticated])
 def delete_url(request,short_code):
+
+   key_rl=f"rate_limit:{request.user.id}:delete_url"
+
+   req_count=redis_client.incr(key_rl)
+
+   if req_count==1:
+      redis_client.expire(key_rl,60)
+
+   if req_count > 20:
+      return Response({"message":"Too many requests"},status=429)
+
 
    url=get_object_or_404(URL,short_code=short_code)               #URL does not exists then return 404 else retrive the object
 
@@ -207,6 +256,17 @@ def delete_url(request,short_code):
 @permission_classes([IsAuthenticated])
 def update_url(request,short_code):
 
+    key_rl=f"rate_limit:{request.user.id}:update_url"
+
+    req_count=redis_client.incr(key_rl)
+
+    if req_count==1:
+         redis_client.expire(key_rl,60)
+
+    if req_count > 20:
+         return Response({"message":"Too many requests"},status=429)
+
+
     base_url = request.build_absolute_uri("/")[:-1]         #build the base url for response
 
     url=get_object_or_404(URL,short_code=short_code)        #retrive the object from the db with corresponding short_code
@@ -216,9 +276,6 @@ def update_url(request,short_code):
        return Response({
           "error":"url does not exist"
        },status=403,)
-
-    redis_client.delete(f"user:{request.user.id}:urls")     #invalidate if the my_urls data is cached
-    redis_client.delete(f"url:{short_code}:stats")
 
     serializer=UpdateSerializer(data=request.data)          #validate the custom_alias sent by the user(JSON->py. object)
 
@@ -244,6 +301,9 @@ def update_url(request,short_code):
 
     url.short_code=new_code
     url.save()
+
+    redis_client.delete(f"user:{request.user.id}:urls")     #invalidate if the my_urls data is cached
+    redis_client.delete(f"url:{short_code}:stats")
     
     return Response({
       "message": "Alias updated successfully.",
@@ -253,11 +313,19 @@ def update_url(request,short_code):
 @api_view(["PATCH"])
 @permission_classes([IsAuthenticated])
 def modify_expiration(request,short_code):
+
+   key_rl=f"rate_limit:{request.user.id}:modify_expiration"
+
+   req_count=redis_client.incr(key_rl)
+
+   if req_count==1:
+      redis_client.expire(key_rl,60)
+
+   if req_count > 20:
+      return Response({"message":"Too many requests"},status=429)
+
    
    url=get_object_or_404(URL,short_code=short_code,owner=request.user)   #added the user(owner) check during retrival itself 
-
-   redis_client.delete(f"user:{request.user.id}:urls")     #invalidate if the my_urls data is cached
-   redis_client.delete(f"url:{url.short_code}:stats")
 
    serializer=ModifyExpirationSerializer(data=request.data)
 
@@ -270,6 +338,9 @@ def modify_expiration(request,short_code):
       return Response({
          "error":"Expiration time must be in future"
       },status=400,)
+
+   redis_client.delete(f"user:{request.user.id}:urls")     #invalidate if the my_urls data is cached
+   redis_client.delete(f"url:{url.short_code}:stats")
    
    url.expires_at=new_time
    url.save()
