@@ -199,7 +199,7 @@ def my_urls(request):
    if req_count==1:
       redis_client.expire(key_rl,60)
 
-   if req_count > 8:
+   if req_count > 60:
       return Response({"message":"Too many requests"},status=429)
 
    cache_key=f"user:{request.user.id}:urls"                #this is the chache key for this endpoint
