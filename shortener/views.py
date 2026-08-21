@@ -12,6 +12,8 @@ from django.contrib.auth.models import User
 
 from .redis_client import redis_client
 
+from .tasks import update_analytics
+
 import json
 
 
@@ -100,9 +102,8 @@ def redirect_url(request,short_code):       #short_code variable is intialized a
          "error" : "This link has expired"
       },status=410,)
 
-   url.click_count+=1;              #increment the click count
-   url.last_accessed=timezone.now() #update the last accessed time
-   url.save()
+   accessed_at=timezone.now()
+   update_analytics.delay(url.id,accessed_at)              # analytics are calculated and saved in backgorund by celery
 
    redis_client.delete(f"user:{request.user.id}:urls")     #invalidates if the my_urls data is cached
    redis_client.delete(f"url:{url.short_code}:stats")
@@ -112,6 +113,7 @@ def redirect_url(request,short_code):       #short_code variable is intialized a
 
 
 @api_view(["GET"])                                    #this is a GET end point to send the analyzed data for each stored url
+@permission_classes([IsAuthenticated])
 def url_stats(request,short_code):                    #simply get the data of the requested shortcode then respond with the data
 
    key_rl=f"rate_limit:{request.user.id}:create_short_url"
