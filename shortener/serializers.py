@@ -19,9 +19,7 @@ class RegisterSerializer(serializers.Serializer):       #this serializer validat
 class URLResponseSerializer(serializers.Serializer):    #this is a response serializer (python_object--->JSON) used to send data to client from server
     original_url = serializers.URLField()
     short_code = serializers.CharField()
-    click_count = serializers.IntegerField()
     created_at = serializers.DateTimeField()
-    last_accessed = serializers.DateTimeField(allow_null=True)
 
 class UpdateSerializer(serializers.Serializer):
     new_short_code=serializers.CharField()

@@ -10,6 +10,8 @@ from .utils import encode_base62
 from django.utils import timezone
 from django.contrib.auth.models import User
 
+from datetime import datetime
+
 from .redis_client import redis_client
 
 from .tasks import update_analytics
@@ -91,25 +93,49 @@ def create_short_url(request):
 
 
 
-
 @api_view(["GET"])                          #This is a get request end point
 def redirect_url(request,short_code):       #short_code variable is intialized at urls.py
-  
-   url=get_object_or_404(URL,short_code=short_code)     #retrive the url from the URL table of db where short_code is the one initialized at urls.py
-                                                        #we can retrive the short_code from the request by request.path(will return smthg like--> /GB) but django does this and sends as argument from the urls.py for us
-   if url.expires_at and timezone.now()>url.expires_at:  #check for expiration
-      return Response({
-         "error" : "This link has expired"
-      },status=410,)
+
+   cache_key=f"url:{short_code}:redirect"
+
+   cached_data=redis_client.get(cache_key)
+
+   link=""     
+
+   if not cached_data:
+      url=get_object_or_404(URL,short_code=short_code)     #retrive the url from the URL table of db where short_code is the one initialized at urls.py
+                                                           #we can retrive the short_code from the request by request.path(will return smthg like--> /GB) but django does this and sends as argument from the urls.py for us
+      if url.expires_at and timezone.now()>url.expires_at:  #check for expiration
+            return Response({
+               "error" : "This link has expired"
+            },status=410,)
+      
+      link=url.original_url
+
+      data={
+         "original_url":url.original_url,
+         "expires_at":url.expires_at,
+         
+      }
+
+      redis_client.setex(cache_key,300,json.dumps(data,default=str))   #only store if the data was not present in cache using check
+
+      
+   else:
+      url1=json.loads(cached_data)
+
+      if url1["expires_at"] and timezone.now()>datetime.fromisoformat(url1["expires_at"]):  #check for expiration
+            return Response({
+               "error" : "This link has expired"
+            },status=410,)
+      
+      link=url1["original_url"]
 
    accessed_at=timezone.now()
-   update_analytics.delay(url.id,accessed_at)              # analytics are calculated and saved in backgorund by celery
+   update_analytics.delay(short_code,accessed_at)              # analytics are calculated and saved in backgorund by celery
 
-   redis_client.delete(f"user:{request.user.id}:urls")     #invalidates if the my_urls data is cached
-   redis_client.delete(f"url:{url.short_code}:stats")
-
-   return redirect(url.original_url)    #instead of rendering a html or responding a json we redirect the user to the origianl link
-                                        #here there is no json from the user end we use the endpoint(short_code to take actions)
+   return redirect(link)    #instead of rendering a html or responding a json we redirect the user to the origianl link
+                            #here there is no json from the user end we use the endpoint(short_code to take actions)
 
 
 @api_view(["GET"])                                    #this is a GET end point to send the analyzed data for each stored url
@@ -244,6 +270,7 @@ def delete_url(request,short_code):
 
    redis_client.delete(f"user:{request.user.id}:urls")     #invalidate if the my_urls data is cached
    redis_client.delete(f"url:{short_code}:stats")
+   redis_client.delete(f"url:{short_code}:redirect")
 
    url=get_object_or_404(URL,short_code=short_code)               #URL does not exists then return 404 else retrive the object
 
@@ -306,6 +333,7 @@ def update_url(request,short_code):
 
     redis_client.delete(f"user:{request.user.id}:urls")     #invalidate if the my_urls data is cached
     redis_client.delete(f"url:{short_code}:stats")
+    redis_client.delete(f"url:{short_code}:redirect")
     
     return Response({
       "message": "Alias updated successfully.",
@@ -343,6 +371,7 @@ def modify_expiration(request,short_code):
 
    redis_client.delete(f"user:{request.user.id}:urls")     #invalidate if the my_urls data is cached
    redis_client.delete(f"url:{url.short_code}:stats")
+   redis_client.delete(f"url:{url.short_code}:redirect")
    
    url.expires_at=new_time
    url.save()
