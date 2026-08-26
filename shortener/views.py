@@ -98,12 +98,11 @@ def redirect_url(request,short_code):       #short_code variable is intialized a
 
    cache_key=f"url:{short_code}:redirect"
 
-   # cached_data=redis_client.get(cache_key)
+   cached_data=redis_client.get(cache_key)
 
    link=""     
 
-   # if not cached_data:
-   if True:
+   if not cached_data:
       url=get_object_or_404(URL,short_code=short_code)     #retrive the url from the URL table of db where short_code is the one initialized at urls.py
                                                            #we can retrive the short_code from the request by request.path(will return smthg like--> /GB) but django does this and sends as argument from the urls.py for us
       if url.expires_at and timezone.now()>url.expires_at:  #check for expiration
@@ -133,16 +132,7 @@ def redirect_url(request,short_code):       #short_code variable is intialized a
       link=url1["original_url"]
 
    accessed_at=timezone.now()
-   # update_analytics.delay(short_code,accessed_at)              # analytics are calculated and saved in backgorund by celery
-   url=URL.objects.get(short_code=short_code)
-   
-   url.click_count+=1
-   url.last_accessed=accessed_at
-
-   url.save()
-
-   #invalidates if the stats data is cached
-   redis_client.delete(f"url:{short_code}:stats")
+   update_analytics.delay(short_code,accessed_at)              # analytics are calculated and saved in backgorund by celery
 
    return redirect(link)    #instead of rendering a html or responding a json we redirect the user to the origianl link
                             #here there is no json from the user end we use the endpoint(short_code to take actions)
