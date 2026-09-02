@@ -8,8 +8,8 @@ Short:    https://domain.com/F/
 ```
 ## Live
 
-- API (backend): https://url-shortener-wj7g.onrender.com
-- Client (frontend<->backend): https://url-shortener-client-hg11.onrender.com
+- SERVER (backend): https://url-shortener-wj7g.onrender.com
+- Client (frontend): https://url-shortener-client-hg11.onrender.com
 
 ## Features
 
@@ -48,13 +48,13 @@ Short:    https://domain.com/F/
 
 ## Basic Workflow
 
--User creates a short URL by providing the original URL.
+- User creates a short URL by providing the original URL.
 
--Store the mapping between the short code and the original URL
+- Store the mapping between the short code and the original URL
 
--When the short code is requested, look up the corresponding URL
+- When the short code is requested, look up the corresponding URL
 
--Redirect the user to the original URL.
+- Redirect the user to the original URL.
 
 ## Caching, Rate Limiting & Celery
 
@@ -64,7 +64,7 @@ Short:    https://domain.com/F/
 
 ## Performance
 
-With Redis + Celery enabled, the production median redirect response time dropped from **912 ms to 285 ms** — roughly a **68.8%** reduction.
+With Redis + Celery enabled, the production median redirect response time dropped from **912 ms to 285 ms** -roughly a **68.8%** reduction.
 
 ## Getting Started
 
