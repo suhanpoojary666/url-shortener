@@ -58,7 +58,7 @@ Short:    https://domain.com/F/
 
 ## Caching, Rate Limiting & Celery
 
-- **Redis caching:** redirect lookups, per-URL stats, and a user's `myurls` list are all cached in Redis, so repeat requests are served straight from cache instead of hitting PostgreSQL every time.
+- **Redis caching:** redirect lookups,URL stats, and a user's myurls list are all cached in Redis, so repeat requests are served straight from cache instead of hitting PostgreSQL every time.
 - **Rate limiting:** Redis also tracks per-user (and per-IP for registration) request counts, capping how often endpoints like create, update, delete, and register can be called.
 - **Celery:** Each redirect queues a background analytics task instead of updating data inline, allowing the user to be redirected immediately while Celery handles the analytics separately.
 
