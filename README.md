@@ -2,10 +2,11 @@
 
 A backend URL shortener built with Django REST Framework. Users can shorten a long URL and get redirected to the original when the short code is visited.
 
-```
+```text
 Original: https://example.com/a-very-long-url
 Short:    https://domain.com/F/
 ```
+
 ## Live
 
 - SERVER (backend): https://url-shortener-wj7g.onrender.com
@@ -21,6 +22,7 @@ Short:    https://domain.com/F/
 - Celery for async analytics processing
 - PostgreSQL for persistent storage
 - Dockerized setup
+- Horizontal scaling with multiple Django instances behind an Nginx load balancer
 
 ## Tech Stack
 
@@ -30,6 +32,7 @@ Short:    https://domain.com/F/
 - Celery
 - JWT
 - Docker
+- Nginx
 
 ## API Endpoints
 
@@ -58,13 +61,19 @@ Short:    https://domain.com/F/
 
 ## Caching, Rate Limiting & Celery
 
-- **Redis caching:** redirect lookups,URL stats, and a user's myurls list are all cached in Redis, so repeat requests are served straight from cache instead of hitting PostgreSQL every time.
+- **Redis caching:** redirect lookups, URL stats, and a user's myurls list are all cached in Redis, so repeat requests are served straight from cache instead of hitting PostgreSQL every time.
 - **Rate limiting:** Redis also tracks per-user (and per-IP for registration) request counts, capping how often endpoints like create, update, delete, and register can be called.
 - **Celery:** Each redirect queues a background analytics task instead of updating data inline, allowing the user to be redirected immediately while Celery handles the analytics separately.
 
 ## Performance
 
-With Redis + Celery enabled, the production median redirect response time dropped from **912 ms to 285 ms** -roughly a **68.8%** reduction.
+With Redis + Celery enabled, the production median redirect response time dropped from **912 ms to 285 ms** - roughly a **68.8%** reduction.
+
+### Load Balancing
+
+Implemented horizontal scaling with **3 Django instances behind an Nginx load balancer**.
+
+Implemented horizontal scaling with 3 Django instances behind an Nginx load balancer, increasing throughput from ~493 to ~1,166 requests/sec (~2.37×).
 
 ## Getting Started
 
@@ -79,6 +88,7 @@ With Redis + Celery enabled, the production median redirect response time droppe
    git clone https://github.com/suhanpoojary666/url-shortener
    cd url-shortener
    ```
+
 2. Create a `.env` file in the project root with:
    ```env
    SECRET_KEY=your-own-secret-key
@@ -86,26 +96,35 @@ With Redis + Celery enabled, the production median redirect response time droppe
    DATABASE_URL=postgresql://postgres:postgres@db:5432/urlshortener
    REDIS_URL=redis://redis:6379
    ```
+
 3. Start the stack:
    ```bash
    docker compose up
    ```
-   This starts three containers: `web` (Django app), `db` (PostgreSQL), and `redis` (Redis). The `web` container's entrypoint runs `python manage.py migrate` automatically before starting Django, so migrations are applied on every startup — no manual step needed.
 
-The API will be available at `http://127.0.0.1:8000`.
+   This starts the Django application instances, Nginx load balancer, PostgreSQL, and Redis. The Django containers' entrypoint runs `python manage.py migrate` automatically before starting Django, so migrations are applied on every startup — no manual step needed.
+
+The API will be available at:
+
+- **Nginx Load Balancer:** `http://127.0.0.1`
+- **Django Server 1:** `http://127.0.0.1:8000`
+- **Django Server 2:** `http://127.0.0.1:8001`
+- **Django Server 3:** `http://127.0.0.1:8002`
 
 ## Project Structure
 
-```
+## Project Structure
+
+```text
 server/
 ├── urlshortener/
 ├── shortener/
 ├── Dockerfile
 ├── docker-compose.yml
+├── nginx.conf
 ├── entrypoint.sh
 ├── requirements.txt
 └── manage.py
-```
 
 - `urlshortener/` — Django project folder
 - `shortener/` — Main app folder

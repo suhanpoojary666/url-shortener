@@ -1,5 +1,5 @@
 services:
-  web:
+  web1:
     image: suhanpoojary666/urlshortener:latest
     ports:
       - "8000:8000"
@@ -8,6 +8,37 @@ services:
     depends_on:
       - db
       - redis
+
+  web2:
+    image: suhanpoojary666/urlshortener:latest
+    ports:
+      - "8001:8000"
+    env_file:
+      - .env
+    depends_on:
+      - db
+      - redis
+
+  web3:
+    image: suhanpoojary666/urlshortener:latest
+    ports:
+      - "8002:8000"
+    env_file:
+      - .env
+    depends_on:
+      - db
+      - redis
+
+  nginix:
+    image: nginx:latest
+    container_name: nginx-load-balancer
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginix.conf:/etc/nginx/nginx.conf:ro
+    restart: unless-stopped
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
 
   db:
     image: postgres:17
