@@ -111,8 +111,6 @@ The API will be available at:
 
 ## Project Structure
 
-## Project Structure
-
 ```text
 server/
 ├── urlshortener/
