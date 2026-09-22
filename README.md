@@ -71,8 +71,6 @@ With Redis + Celery enabled, the production median redirect response time droppe
 
 ### Load Balancing
 
-Implemented horizontal scaling with **3 Django instances behind an Nginx load balancer**.
-
 Implemented horizontal scaling with 3 Django instances behind an Nginx load balancer, increasing throughput from ~493 to ~1,166 requests/sec (~2.37×).
 
 ## Getting Started
